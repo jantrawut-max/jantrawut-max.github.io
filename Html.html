@@ -1,0 +1,963 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>ระบบติดตามและบริหารจัดการรถน้ำท่วม - Ratchada 69</title>
+    <!-- Google Font: Sarabun -->
+    <link href="https://fonts.googleapis.com/css2?family=Sarabun:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    colors: {
+                        primary: '#0C7C82',
+                        secondary: '#35B4B0',
+                        accent: '#26A69A',
+                        limeCustom: '#AED581',
+                        yellowCustom: '#FFCA28',
+                        orangeCustom: '#FF8A65',
+                        redCustom: '#EF5350',
+                        purpleCustom: '#4A2C6D',
+                    }
+                }
+            }
+        }
+    </script>
+    <!-- FontAwesome Icons -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <!-- Chart.js -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <!-- SheetJS (XLSX Export & Import) -->
+    <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
+    <!-- SweetAlert2 -->
+    <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
+    <style>
+        body { font-family: 'Sarabun', sans-serif; }
+        .skeleton {
+            background: linear-gradient(90deg, #f0f0f0 25%, #e0e0e0 50%, #f0f0f0 75%);
+            background-size: 200% 100%;
+            animation: loading 1.5s infinite;
+        }
+        @keyframes loading {
+            0% { background-position: 200% 0; }
+            100% { background-position: -200% 0; }
+        }
+        @media print {
+            .no-print { display: none !important; }
+            .print-only { display: block !important; }
+        }
+    </style>
+</head>
+<body class="bg-gray-50 text-gray-800 flex h-screen overflow-hidden">
+
+    <!-- Loading Screen -->
+    <div id="global-loader" class="fixed inset-0 bg-white/90 z-50 flex flex-col items-center justify-center transition-opacity duration-300">
+        <div class="animate-spin rounded-full h-16 w-16 border-t-4 border-b-4 border-primary mb-4"></div>
+        <p class="text-primary font-semibold text-lg">กำลังโหลดระบบควบคุมรถน้ำท่วม...</p>
+    </div>
+
+    <!-- Sidebar (Desktop) -->
+    <aside id="sidebar" class="bg-primary text-white w-64 space-y-6 py-6 px-4 absolute inset-y-0 left-0 transform -translate-x-full md:relative md:translate-x-0 transition duration-200 ease-in-out z-30 flex flex-col justify-between shadow-xl">
+        <div>
+            <div class="flex items-center space-x-3 px-2 mb-4">
+                <div class="bg-white p-2 rounded-xl text-primary shadow">
+                    <i class="fa-solid fa-water text-2xl"></i>
+                </div>
+                <div>
+                    <h1 class="text-lg font-bold tracking-wide">Ratchada 69</h1>
+                    <p class="text-xs text-secondary font-light">ระบบควบคุมระดับองค์กร</p>
+                </div>
+            </div>
+
+            <!-- Role Switcher Box for Demonstration -->
+            <div class="bg-black/20 p-3 rounded-xl mb-4 text-xs">
+                <label class="block text-white/70 mb-1 font-semibold">สิทธิ์ผู้ใช้งานปัจจุบัน:</label>
+                <select id="user-role-select" onchange="changeUserRole(this.value)" class="w-full bg-white text-gray-800 rounded-lg px-2 py-1.5 font-bold focus:outline-none">
+                    <option value="viewer">Viewer (ดูได้อย่างเดียว)</option>
+                    <option value="editor">Editor (แก้ไขข้อมูล / ห้ามดูประวัติ)</option>
+                    <option value="admin" selected>Admin (สิทธิ์สูงสุดทุกอย่าง)</option>
+                </select>
+            </div>
+
+            <nav class="space-y-1">
+                <a href="#" onclick="switchTab('dashboard')" class="nav-link flex items-center space-x-3 px-4 py-3 rounded-xl bg-secondary/35 text-white font-medium transition hover:bg-secondary/20">
+                    <i class="fa-solid fa-chart-pie w-5"></i><span>ภาพรวมแดชบอร์ด</span>
+                </a>
+                <a href="#" onclick="switchTab('data-table')" class="nav-link flex items-center space-x-3 px-4 py-3 rounded-xl text-white/80 hover:bg-secondary/20 font-medium transition">
+                    <i class="fa-solid fa-table-cells w-5"></i><span>ข้อมูลและจัดการรายการ</span>
+                </a>
+                <a href="#" onclick="switchTab('duplicate-check')" class="nav-link flex items-center space-x-3 px-4 py-3 rounded-xl text-white/80 hover:bg-secondary/20 font-medium transition">
+                    <i class="fa-solid fa-triangle-exclamation w-5 text-yellowCustom"></i><span>ตรวจสอบทะเบียนซ้ำ</span>
+                </a>
+                <a href="#" id="menu-audit" onclick="switchTab('audit-log')" class="nav-link flex items-center space-x-3 px-4 py-3 rounded-xl text-white/80 hover:bg-secondary/20 font-medium transition">
+                    <i class="fa-solid fa-clock-rotate-left w-5 text-limeCustom"></i><span>ประวัติการทำรายการ</span>
+                </a>
+                <a href="#" onclick="switchTab('reports')" class="nav-link flex items-center space-x-3 px-4 py-3 rounded-xl text-white/80 hover:bg-secondary/20 font-medium transition">
+                    <i class="fa-solid fa-print w-5"></i><span>พิมพ์รายงาน / ส่งออกไฟล์</span>
+                </a>
+            </nav>
+        </div>
+        <div>
+            <button onclick="confirmLogout()" class="w-full flex items-center justify-center space-x-2 bg-redCustom/80 hover:bg-redCustom text-white py-2.5 rounded-xl transition shadow">
+                <i class="fa-solid fa-right-from-bracket"></i><span>ออกจากระบบ</span>
+            </button>
+        </div>
+    </aside>
+
+    <!-- Main Content Area -->
+    <div class="flex-1 flex flex-col overflow-hidden">
+        <!-- Top Navbar -->
+        <header class="bg-white shadow-sm h-16 flex items-center justify-between px-6 z-20">
+            <div class="flex items-center space-x-4">
+                <button onclick="toggleSidebar()" class="md:hidden text-primary focus:outline-none">
+                    <i class="fa-solid fa-bars text-2xl"></i>
+                </button>
+                <h2 id="page-title" class="text-xl font-bold text-primary">ภาพรวมแดชบอร์ดสถิติ</h2>
+            </div>
+            <div class="flex items-center space-x-4">
+                <span id="role-badge" class="bg-limeCustom/20 text-primary text-xs font-semibold px-3 py-1.5 rounded-full border border-limeCustom/40">
+                    <i class="fa-solid fa-shield-halved text-emerald-600 mr-1"></i> สิทธิ์: Admin
+                </span>
+                <div class="w-9 h-9 rounded-full bg-secondary text-white flex items-center justify-center font-bold shadow">
+                    AD
+                </div>
+            </div>
+        </header>
+
+        <!-- Scrollable Content -->
+        <main class="flex-1 overflow-y-auto p-6 bg-gray-50 pb-24 md:pb-6">
+            
+            <!-- TAB 1: DASHBOARD -->
+            <div id="tab-dashboard" class="tab-content space-y-6">
+                <!-- Card Stats General -->
+                <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+                    <div class="bg-white p-5 rounded-2xl shadow-sm border border-gray-100 flex items-center justify-between">
+                        <div>
+                            <p class="text-xs text-gray-400 font-medium">จำนวนเคสทั้งหมด</p>
+                            <h3 id="stat-total" class="text-2xl font-bold text-primary mt-1">--</h3>
+                            <span class="text-[10px] bg-primary/10 text-primary px-2 py-0.5 rounded-full">รวมข้อมูลจริง 4 วัน</span>
+                        </div>
+                        <div class="w-12 h-12 rounded-xl bg-primary/10 text-primary flex items-center justify-center text-xl">
+                            <i class="fa-solid fa-car-burst"></i>
+                        </div>
+                    </div>
+                    <div class="bg-white p-5 rounded-2xl shadow-sm border border-gray-100 flex items-center justify-between">
+                        <div>
+                            <p class="text-xs text-gray-400 font-medium">เปิดเคลมแล้ว</p>
+                            <h3 id="stat-claimed" class="text-2xl font-bold text-emerald-600 mt-1">--</h3>
+                            <span class="text-[10px] bg-emerald-100 text-emerald-700 px-2 py-0.5 rounded-full">ดำเนินการแล้ว</span>
+                        </div>
+                        <div class="w-12 h-12 rounded-xl bg-emerald-100 text-emerald-600 flex items-center justify-center text-xl">
+                            <i class="fa-solid fa-clipboard-check"></i>
+                        </div>
+                    </div>
+                    <div class="bg-white p-5 rounded-2xl shadow-sm border border-gray-100 flex items-center justify-between">
+                        <div>
+                            <p class="text-xs text-gray-400 font-medium">เคสค้างดำเนินการ (Pending)</p>
+                            <h3 id="stat-pending" class="text-2xl font-bold text-orangeCustom mt-1">--</h3>
+                            <span class="text-[10px] bg-orangeCustom/10 text-orangeCustom px-2 py-0.5 rounded-full">ต้องเร่งติดตาม</span>
+                        </div>
+                        <div class="w-12 h-12 rounded-xl bg-orangeCustom/10 text-orangeCustom flex items-center justify-center text-xl">
+                            <i class="fa-solid fa-clock"></i>
+                        </div>
+                    </div>
+                    <div class="bg-white p-5 rounded-2xl shadow-sm border border-gray-100 flex items-center justify-between">
+                        <div>
+                            <p class="text-xs text-gray-400 font-medium">ระดับ A (พื้นรถยนต์)</p>
+                            <h3 id="stat-water-a" class="text-2xl font-bold text-redCustom mt-1">--</h3>
+                            <span class="text-[10px] bg-redCustom/10 text-redCustom px-2 py-0.5 rounded-full">เคสระดับ A</span>
+                        </div>
+                        <div class="w-12 h-12 rounded-xl bg-redCustom/10 text-redCustom flex items-center justify-center text-xl">
+                            <i class="fa-solid fa-water"></i>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Special Summary Cards (4 Categories) -->
+                <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+                    <div class="bg-white p-5 rounded-2xl shadow-sm border-l-4 border-yellow-500 flex items-center justify-between">
+                        <div>
+                            <p class="text-xs text-gray-400 font-medium">เปลี่ยนรับแจ้ง</p>
+                            <h3 id="stat-changed" class="text-xl font-bold text-gray-700 mt-1">--</h3>
+                        </div>
+                        <div class="w-10 h-10 rounded-xl bg-yellow-50 text-yellow-600 flex items-center justify-center">
+                            <i class="fa-solid fa-pen-clip"></i>
+                        </div>
+                    </div>
+                    <div class="bg-white p-5 rounded-2xl shadow-sm border-l-4 border-blue-500 flex items-center justify-between">
+                        <div>
+                            <p class="text-xs text-gray-400 font-medium">ส่งรับแจ้งต่างศูนย์</p>
+                            <h3 id="stat-diff-center" class="text-xl font-bold text-gray-700 mt-1">--</h3>
+                        </div>
+                        <div class="w-10 h-10 rounded-xl bg-blue-50 text-blue-600 flex items-center justify-center">
+                            <i class="fa-solid fa-building-transfer"></i>
+                        </div>
+                    </div>
+                    <div class="bg-white p-5 rounded-2xl shadow-sm border-l-4 border-red-500 flex items-center justify-between">
+                        <div>
+                            <p class="text-xs text-gray-400 font-medium">ไม่คุ้มครอง</p>
+                            <h3 id="stat-not-covered" class="text-xl font-bold text-gray-700 mt-1">--</h3>
+                        </div>
+                        <div class="w-10 h-10 rounded-xl bg-red-50 text-red-600 flex items-center justify-center">
+                            <i class="fa-solid fa-ban"></i>
+                        </div>
+                    </div>
+                    <div class="bg-white p-5 rounded-2xl shadow-sm border-l-4 border-purple-500 flex items-center justify-between">
+                        <div>
+                            <p class="text-xs text-gray-400 font-medium">เคลม Non-Motor</p>
+                            <h3 id="stat-non-motor" class="text-xl font-bold text-gray-700 mt-1">--</h3>
+                        </div>
+                        <div class="w-10 h-10 rounded-xl bg-purple-50 text-purple-600 flex items-center justify-center">
+                            <i class="fa-solid fa-box-archive"></i>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Water Level Summary Cards (A-E with New Definitions) -->
+                <div class="bg-white p-6 rounded-2xl shadow-sm border border-gray-100">
+                    <h3 class="text-base font-bold text-gray-700 mb-4">สรุปจำนวนเคสตามระดับน้ำท่วม (อ้างอิงตามนิยามมาตรฐาน)</h3>
+                    <div class="grid grid-cols-1 sm:grid-cols-5 gap-4" id="water-level-summary">
+                        <!-- Injected via JS -->
+                    </div>
+                </div>
+
+                <!-- Charts Section -->
+                <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                    <div class="bg-white p-6 rounded-2xl shadow-sm border border-gray-100">
+                        <h3 class="text-base font-bold text-gray-700 mb-4">สถิติปริมาณรถแจ้งความเสียหายแต่ละวัน</h3>
+                        <div class="relative h-72">
+                            <canvas id="dailyChart"></canvas>
+                        </div>
+                    </div>
+                    <div class="bg-white p-6 rounded-2xl shadow-sm border border-gray-100">
+                        <h3 class="text-base font-bold text-gray-700 mb-4">สัดส่วนระดับน้ำท่วม (A - E)</h3>
+                        <div class="relative h-72">
+                            <canvas id="waterChart"></canvas>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- TAB 2: DATA TABLE & CRUD -->
+            <div id="tab-data-table" class="tab-content hidden space-y-6">
+                <div class="bg-white p-6 rounded-2xl shadow-sm border border-gray-100">
+                    <div class="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-6">
+                        <div class="flex flex-wrap items-center gap-3">
+                            <select id="filter-date" onchange="filterTableData()" class="border border-gray-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:border-primary">
+                                <option value="all">ทุกวันที่ทั้งหมด</option>
+                                <option value="25-09-2569">25 กันยายน 2569</option>
+                                <option value="26-09-2569">26 กันยายน 2569</option>
+                                <option value="27-09-2569">27 กันยายน 2569</option>
+                                <option value="28-09-2569">28 กันยายน 2569</option>
+                            </select>
+                            <select id="filter-water" onchange="filterTableData()" class="border border-gray-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:border-primary">
+                                <option value="all">ทุกระดับน้ำ (A-E)</option>
+                                <option value="A">ระดับ A (พื้นรถยนต์)</option>
+                                <option value="B">ระดับ B (เบาะนั่ง)</option>
+                                <option value="C">ระดับ C (คอนโซลล่าง)</option>
+                                <option value="D">ระดับ D (คอนโซลบน)</option>
+                                <option value="E">ระดับ E (ท่วมทั้งคัน)</option>
+                            </select>
+                            <select id="filter-special" onchange="filterTableData()" class="border border-gray-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:border-primary">
+                                <option value="all">ทุกสถานะพิเศษ</option>
+                                <option value="เปลี่ยนรับแจ้ง">เปลี่ยนรับแจ้ง</option>
+                                <option value="ส่งต่างศูนย์">ส่งรับแจ้งต่างศูนย์</option>
+                                <option value="ไม่คุ้มครอง">ไม่คุ้มครอง</option>
+                                <option value="Non-Motor">เคลม Non-Motor</option>
+                            </select>
+                            <div class="relative">
+                                <input type="text" id="search-input" onkeyup="filterTableData()" placeholder="ค้นหาทะเบียน, ชื่อ..." class="border border-gray-200 rounded-xl pl-9 pr-3 py-2 text-sm focus:outline-none focus:border-primary w-40">
+                                <i class="fa-solid fa-search absolute left-3 top-3 text-gray-400 text-sm"></i>
+                            </div>
+                        </div>
+                        <div class="flex space-x-2">
+                            <!-- ปุ่ม Import Excel -->
+                            <label id="btn-import" class="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-xl text-sm font-medium shadow transition flex items-center space-x-2 cursor-pointer">
+                                <i class="fa-solid fa-file-excel"></i>
+                                <span>Import Excel</span>
+                                <input type="file" id="excel-file-input" accept=".xlsx, .xls, .csv" class="hidden" onchange="importExcelData(event)">
+                            </label>
+
+                            <button onclick="exportToExcel()" class="bg-emerald-600 hover:bg-emerald-700 text-white px-4 py-2 rounded-xl text-sm font-medium shadow transition flex items-center space-x-2">
+                                <i class="fa-solid fa-file-excel"></i><span>Export Excel</span>
+                            </button>
+                            <button id="btn-add" onclick="openAddModal()" class="bg-primary hover:bg-primary/90 text-white px-4 py-2 rounded-xl text-sm font-medium shadow transition flex items-center space-x-2">
+                                <i class="fa-solid fa-plus"></i><span>เพิ่มรายการใหม่</span>
+                            </button>
+                        </div>
+                    </div>
+
+                    <!-- Table Overflow -->
+                    <div class="overflow-x-auto rounded-xl border border-gray-100">
+                        <table class="w-full text-left border-collapse">
+                            <thead>
+                                <tr class="bg-primary/10 text-primary text-xs uppercase tracking-wider">
+                                    <th class="py-3 px-4 font-semibold">วันที่</th>
+                                    <th class="py-3 px-4 font-semibold">เลขรับแจ้ง</th>
+                                    <th class="py-3 px-4 font-semibold">สถานที่เกิดเหตุ</th>
+                                    <th class="py-3 px-4 font-semibold">ระดับน้ำ</th>
+                                    <th class="py-3 px-4 font-semibold">ชื่อผู้แจ้ง</th>
+                                    <th class="py-3 px-4 font-semibold">รุ่นรถ / ทะเบียน</th>
+                                    <th class="py-3 px-4 font-semibold">ผู้รับผิดชอบ (Assignee)</th>
+                                    <th class="py-3 px-4 font-semibold">สถานะเคลม</th>
+                                    <th class="py-3 px-4 font-semibold text-center">จัดการ</th>
+                                </tr>
+                            </thead>
+                            <tbody id="main-table-body" class="divide-y divide-gray-100 text-sm">
+                                <!-- Dynamic Rows -->
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+
+            <!-- TAB 3: DUPLICATE CHECK -->
+            <div id="tab-duplicate-check" class="tab-content hidden space-y-6">
+                <div class="bg-white p-6 rounded-2xl shadow-sm border border-gray-100">
+                    <div class="flex items-center justify-between mb-6">
+                        <div>
+                            <h3 class="text-lg font-bold text-gray-800">รายงานตรวจสอบเลขทะเบียนรถซ้ำ</h3>
+                            <p class="text-xs text-gray-400">ระบบตรวจสอบอัตโนมัติหากมีการแจ้งเรื่องซ้ำซ้อนข้ามวัน</p>
+                        </div>
+                        <span class="bg-orangeCustom/10 text-orangeCustom px-3 py-1 rounded-full text-xs font-semibold">
+                            <i class="fa-solid fa-triangle-exclamation mr-1"></i> ตรวจสอบอัตโนมัติ
+                        </span>
+                    </div>
+                    <div class="overflow-x-auto rounded-xl border border-gray-100">
+                        <table class="w-full text-left border-collapse">
+                            <thead>
+                                <tr class="bg-orangeCustom/10 text-orangeCustom text-xs uppercase tracking-wider">
+                                    <th class="py-3 px-4 font-semibold">ทะเบียนรถ / รุ่นรถ</th>
+                                    <th class="py-3 px-4 font-semibold">จำนวนครั้งที่แจ้ง</th>
+                                    <th class="py-3 px-4 font-semibold">วันที่แจ้งล่าสุด</th>
+                                    <th class="py-3 px-4 font-semibold">รายละเอียดผู้แจ้งทั้งหมด</th>
+                                </tr>
+                            </thead>
+                            <tbody id="duplicate-table-body" class="divide-y divide-gray-100 text-sm">
+                                <!-- Dynamic Duplicate Rows -->
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+
+            <!-- TAB 4: AUDIT LOG -->
+            <div id="tab-audit-log" class="tab-content hidden space-y-6">
+                <div class="bg-white p-6 rounded-2xl shadow-sm border border-gray-100">
+                    <div class="flex items-center justify-between mb-6">
+                        <div>
+                            <h3 class="text-lg font-bold text-gray-800">ประวัติการทำรายการในระบบ (Audit Log)</h3>
+                            <p class="text-xs text-gray-400">บันทึกการเพิ่ม แก้ไข และลบข้อมูลเพื่อการตรวจสอบย้อนหลัง (Admin Only)</p>
+                        </div>
+                        <span class="bg-primary/10 text-primary px-3 py-1 rounded-full text-xs font-semibold">
+                            <i class="fa-solid fa-shield-halved mr-1"></i> Admin Only
+                        </span>
+                    </div>
+                    <div class="overflow-x-auto rounded-xl border border-gray-100">
+                        <table class="w-full text-left border-collapse">
+                            <thead>
+                                <tr class="bg-primary/10 text-primary text-xs uppercase tracking-wider">
+                                    <th class="py-3 px-4 font-semibold">เวลาทำรายการ</th>
+                                    <th class="py-3 px-4 font-semibold">ผู้ใช้งาน</th>
+                                    <th class="py-3 px-4 font-semibold">การกระทำ (Action)</th>
+                                    <th class="py-3 px-4 font-semibold">รายละเอียด</th>
+                                </tr>
+                            </thead>
+                            <tbody id="audit-table-body" class="divide-y divide-gray-100 text-sm">
+                                <!-- Dynamic Audit Logs -->
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+
+            <!-- TAB 5: REPORTS & WINDOW PRINT -->
+            <div id="tab-reports" class="tab-content hidden space-y-6">
+                <div class="bg-white p-6 rounded-2xl shadow-sm border border-gray-100 flex flex-col items-center justify-center text-center py-16">
+                    <div class="w-16 h-16 bg-primary/10 text-primary rounded-2xl flex items-center justify-center text-3xl mb-4">
+                        <i class="fa-solid fa-print"></i>
+                    </div>
+                    <h3 class="text-xl font-bold text-gray-800 mb-2">พิมพ์รายงานสรุปผลประจำวัน</h3>
+                    <p class="text-sm text-gray-500 max-w-md mb-6">พิมพ์รายงานสรุปสถิติจำนวนเคส ระดับน้ำ และสถานะการเปิดเคลมในรูปแบบ Window Print หรือดาวน์โหลดเป็นไฟล์ Excel</p>
+                    <div class="flex space-x-3">
+                        <button onclick="window.print()" class="bg-primary hover:bg-primary/90 text-white px-6 py-3 rounded-xl text-sm font-medium shadow transition flex items-center space-x-2">
+                            <i class="fa-solid fa-file-pdf"></i><span>พิมพ์รายงาน Window Print</span>
+                        </button>
+                        <button onclick="exportToExcel()" class="bg-emerald-600 hover:bg-emerald-700 text-white px-6 py-3 rounded-xl text-sm font-medium shadow transition flex items-center space-x-2">
+                            <i class="fa-solid fa-file-excel"></i><span>ดาวน์โหลด Excel</span>
+                        </button>
+                    </div>
+                </div>
+            </div>
+
+        </main>
+
+        <!-- Footer with Claim Status -->
+        <footer class="bg-white border-t border-gray-100 py-3 px-6 text-center text-xs text-gray-500 flex flex-col sm:flex-row items-center justify-between z-10">
+            <p>© 2569 ระบบติดตามรถน้ำท่วม รัชดา 69. สงวนลิขสิทธิ์.</p>
+            <p class="mt-1 sm:mt-0 font-medium text-primary">สถานะการเปิดเคลมรวมทั้งหมด: <span id="footer-claim-count" class="font-bold text-emerald-600">กำลังโหลด...</span></p>
+        </footer>
+    </div>
+
+    <!-- Mobile Bottom Navigation Bar -->
+    <div class="md:hidden fixed bottom-0 left-0 right-0 bg-white border-t border-gray-200 py-2 px-4 flex justify-around items-center z-40 shadow-lg">
+        <button onclick="switchTab('dashboard')" class="flex flex-col items-center text-primary text-xs">
+            <i class="fa-solid fa-chart-pie text-lg"></i><span>หน้าแรก</span>
+        </button>
+        <button onclick="switchTab('data-table')" class="flex flex-col items-center text-gray-400 text-xs">
+            <i class="fa-solid fa-table-cells text-lg"></i><span>รายการ</span>
+        </button>
+        <button onclick="switchTab('duplicate-check')" class="flex flex-col items-center text-gray-400 text-xs">
+            <i class="fa-solid fa-triangle-exclamation text-lg"></i><span>รถซ้ำ</span>
+        </button>
+        <button id="mobile-menu-audit" onclick="switchTab('audit-log')" class="flex flex-col items-center text-gray-400 text-xs">
+            <i class="fa-solid fa-clock-rotate-left text-lg"></i><span>ประวัติ</span>
+        </button>
+        <button onclick="switchTab('reports')" class="flex flex-col items-center text-gray-400 text-xs">
+            <i class="fa-solid fa-print text-lg"></i><span>พิมพ์</span>
+        </button>
+    </div>
+
+    <!-- Modal: Add / Edit -->
+    <div id="data-modal" class="fixed inset-0 bg-black/50 z-50 hidden flex items-center justify-center p-4">
+        <div class="bg-white rounded-2xl w-full max-w-lg overflow-hidden shadow-2xl transform transition-all">
+            <div class="bg-primary px-6 py-4 text-white flex justify-between items-center">
+                <h3 id="modal-title" class="font-bold text-base">เพิ่มรายการแจ้งน้ำท่วม</h3>
+                <button onclick="closeModal()" class="text-white/80 hover:text-white"><i class="fa-solid fa-xmark text-lg"></i></button>
+            </div>
+            <div class="p-6 space-y-4 max-h-[75vh] overflow-y-auto">
+                <input type="hidden" id="edit-index">
+                <div class="grid grid-cols-2 gap-4">
+                    <div>
+                        <label class="block text-xs font-semibold text-gray-600 mb-1">วันที่เกิดเหตุ</label>
+                        <select id="m-date" class="w-full border border-gray-200 rounded-xl px-4 py-2 text-sm focus:outline-none focus:border-primary">
+                            <option value="25-09-2569">25 กันยายน 2569</option>
+                            <option value="26-09-2569">26 กันยายน 2569</option>
+                            <option value="27-09-2569">27 กันยายน 2569</option>
+                            <option value="28-09-2569">28 กันยายน 2569</option>
+                        </select>
+                    </div>
+                    <div>
+                        <label class="block text-xs font-semibold text-gray-600 mb-1">ระดับน้ำท่วม</label>
+                        <select id="m-water" class="w-full border border-gray-200 rounded-xl px-4 py-2 text-sm focus:outline-none focus:border-primary font-bold text-red-600">
+                            <option value="A">ระดับ A (พื้นรถยนต์)</option>
+                            <option value="B">ระดับ B (เบาะนั่ง)</option>
+                            <option value="C">ระดับ C (คอนโซลล่าง)</option>
+                            <option value="D">ระดับ D (คอนโซลบน)</option>
+                            <option value="E">ระดับ E (ท่วมทั้งคัน)</option>
+                        </select>
+                    </div>
+                </div>
+                <div>
+                    <label class="block text-xs font-semibold text-gray-600 mb-1">เลขรับแจ้ง</label>
+                    <input type="text" id="m-ticket" class="w-full border border-gray-200 rounded-xl px-4 py-2 text-sm focus:outline-none focus:border-primary" placeholder="เช่น 20701">
+                </div>
+                <div>
+                    <label class="block text-xs font-semibold text-gray-600 mb-1">สถานที่เกิดเหตุ</label>
+                    <input type="text" id="m-location" class="w-full border border-gray-200 rounded-xl px-4 py-2 text-sm focus:outline-none focus:border-primary" placeholder="เช่น ซ.รัชดา 69">
+                </div>
+                <div class="grid grid-cols-2 gap-4">
+                    <div>
+                        <label class="block text-xs font-semibold text-gray-600 mb-1">ชื่อผู้แจ้ง</label>
+                        <input type="text" id="m-name" class="w-full border border-gray-200 rounded-xl px-4 py-2 text-sm focus:outline-none focus:border-primary" placeholder="ชื่อ-นามสกุล">
+                    </div>
+                    <div>
+                        <label class="block text-xs font-semibold text-gray-600 mb-1">เบอร์โทร</label>
+                        <input type="text" id="m-phone" class="w-full border border-gray-200 rounded-xl px-4 py-2 text-sm focus:outline-none focus:border-primary" placeholder="08x-xxx-xxxx">
+                    </div>
+                </div>
+                <div class="grid grid-cols-2 gap-4">
+                    <div>
+                        <label class="block text-xs font-semibold text-gray-600 mb-1">รุ่นรถ / ทะเบียน</label>
+                        <input type="text" id="m-car" class="w-full border border-gray-200 rounded-xl px-4 py-2 text-sm focus:outline-none focus:border-primary" placeholder="Mazda 2 1ขฉ-7355">
+                    </div>
+                    <div>
+                        <label class="block text-xs font-semibold text-gray-600 mb-1">เจ้าหน้าที่ผู้รับผิดชอบ</label>
+                        <select id="m-assignee" class="w-full border border-gray-200 rounded-xl px-4 py-2 text-sm focus:outline-none focus:border-primary">
+                            <option value="คุณสมชาย (ทีม A)">คุณสมชาย (ทีม A)</option>
+                            <option value="คุณวิชัย (ทีม B)">คุณวิชัย (ทีม B)</option>
+                            <option value="คุณดนัย (ทีม C)">คุณดนัย (ทีม C)</option>
+                            <option value="ยังไม่ระบุทีม">ยังไม่ระบุทีม</option>
+                        </select>
+                    </div>
+                </div>
+                <div>
+                    <label class="block text-xs font-semibold text-gray-600 mb-1">สถานะเปิดเคลม / สถานะพิเศษ</label>
+                    <select id="m-claim" class="w-full border border-gray-200 rounded-xl px-4 py-2 text-sm focus:outline-none focus:border-primary font-medium">
+                        <option value="เปิดเคลมแล้ว">เปิดเคลมแล้วปกติ</option>
+                        <option value="รอดำเนินการ">รอดำเนินการ (เคสค้าง)</option>
+                        <option value="เปลี่ยนรับแจ้ง">เปลี่ยนรับแจ้ง</option>
+                        <option value="ส่งต่างศูนย์">ส่งรับแจ้งต่างศูนย์</option>
+                        <option value="ไม่คุ้มครอง">ไม่คุ้มครอง</option>
+                        <option value="Non-Motor">เคลม Non-Motor</option>
+                    </select>
+                </div>
+            </div>
+            <div class="bg-gray-50 px-6 py-3 flex justify-end space-x-3 border-t border-gray-100">
+                <button onclick="closeModal()" class="px-4 py-2 rounded-xl border border-gray-200 text-gray-600 text-sm hover:bg-gray-100 transition">ยกเลิก</button>
+                <button onclick="saveData()" class="px-4 py-2 rounded-xl bg-primary text-white text-sm hover:bg-primary/90 transition shadow">บันทึกข้อมูล</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Application Script with RBAC Permissions & Water Level Definitions -->
+    <script>
+        let currentUserRole = 'admin'; // viewer, editor, admin
+
+        let floodData = [
+            { id: 1, date: '25-09-2569', ticket: '20684', location: 'ถ.ลาดพร้าววังหิน ซ.31', water: 'A', name: 'ณิรินทร์ญา', phone: '***-***-****', car: 'BYD ปด', assignee: 'คุณสมชาย (ทีม A)', claim: 'เปลี่ยนรับแจ้ง' },
+            { id: 2, date: '25-09-2569', ticket: '20689', location: 'ซ.รามคำแหง 43/1', water: 'B', name: 'ศักดินาถ', phone: '***-***-****', car: 'BENZ 4ขฎ-539 กท', assignee: 'คุณวิชัย (ทีม B)', claim: 'จิรศักดิ์' },
+            { id: 3, date: '25-09-2569', ticket: '20701', location: 'ซ.รามคำแหง 43/2', water: 'C', name: 'ทวีศักดิ์', phone: '***-***-****', car: 'M/Z 2 6ขค-93 กท', assignee: 'คุณดนัย (ทีม C)', claim: 'เสกสิทธิ์' },
+            { id: 4, date: '25-09-2569', ticket: '20724', location: 'โยธินพัฒนา', water: 'D', name: 'ตฤษณ', phone: '***-*******', car: 'BENZ3ขค 379 กท', assignee: 'คุณสมชาย (ทีม A)', claim: 'ส่งต่างศูนย์' },
+            { id: 5, date: '25-09-2569', ticket: '20710', location: 'เจ้าขึน', water: 'E', name: 'ยัสมี', phone: '***-***-****', car: 'MG ขค 6025', assignee: 'คุณวิชัย (ทีม B)', claim: 'ไม่คุ้มครอง' }
+        ];
+
+        let auditLogs = [
+            { time: '28-09-2569 18:00', user: 'Admin (System)', action: 'SYNC_EXCEL', details: 'อัปเดตนิยามระดับน้ำท่วมตามมาตรฐานใหม่สำเร็จ' }
+        ];
+
+        let dailyChartInstance = null;
+        let waterChartInstance = null;
+
+        window.addEventListener('DOMContentLoaded', () => {
+            setTimeout(() => {
+                document.getElementById('global-loader').classList.add('opacity-0');
+                setTimeout(() => document.getElementById('global-loader').style.display = 'none', 300);
+                applyUserRolePermissions();
+                renderDashboard();
+                renderTable();
+                renderDuplicateCheck();
+                renderAuditLog();
+            }, 600);
+        });
+
+        function changeUserRole(role) {
+            currentUserRole = role;
+            applyUserRolePermissions();
+            renderTable();
+            Swal.fire({
+                icon: 'info',
+                title: `เปลี่ยนสิทธิ์เป็น: ${role.toUpperCase()}`,
+                text: role === 'viewer' ? 'ดูข้อมูลได้อย่างเดียว' : (role === 'editor' ? 'แก้ไขข้อมูลได้ (ห้ามดูประวัติ)' : 'สิทธิ์ Admin สูงสุด'),
+                timer: 1500,
+                showConfirmButton: false
+            });
+        }
+
+        function applyUserRolePermissions() {
+            const roleBadge = document.getElementById('role-badge');
+            const menuAudit = document.getElementById('menu-audit');
+            const mobileMenuAudit = document.getElementById('mobile-menu-audit');
+            const btnImport = document.getElementById('btn-import');
+            const btnAdd = document.getElementById('btn-add');
+
+            if (currentUserRole === 'viewer') {
+                roleBadge.innerHTML = `<i class="fa-solid fa-eye text-blue-500 mr-1"></i> สิทธิ์: Viewer (ดูอย่างเดียว)`;
+                if(menuAudit) menuAudit.style.display = 'none';
+                if(mobileMenuAudit) mobileMenuAudit.style.display = 'none';
+                if(btnImport) btnImport.style.display = 'none';
+                if(btnAdd) btnAdd.style.display = 'none';
+            } else if (currentUserRole === 'editor') {
+                roleBadge.innerHTML = `<i class="fa-solid fa-pen-to-square text-orange-500 mr-1"></i> สิทธิ์: Editor (แก้ไขได้/ห้ามดูประวัติ)`;
+                if(menuAudit) menuAudit.style.display = 'none';
+                if(mobileMenuAudit) mobileMenuAudit.style.display = 'none';
+                if(btnImport) btnImport.style.display = 'flex';
+                if(btnAdd) btnAdd.style.display = 'flex';
+            } else {
+                roleBadge.innerHTML = `<i class="fa-solid fa-shield-halved text-emerald-600 mr-1"></i> สิทธิ์: Admin (สูงสุดทุกอย่าง)`;
+                if(menuAudit) menuAudit.style.display = 'flex';
+                if(mobileMenuAudit) mobileMenuAudit.style.display = 'flex';
+                if(btnImport) btnImport.style.display = 'flex';
+                if(btnAdd) btnAdd.style.display = 'flex';
+            }
+        }
+
+        function toggleSidebar() {
+            document.getElementById('sidebar').classList.toggle('-translate-x-full');
+        }
+
+        function switchTab(tabId) {
+            if (tabId === 'audit-log' && currentUserRole !== 'admin') {
+                Swal.fire('ปฏิเสธการเข้าถึง', 'เฉพาะสิทธิ์ Admin เท่านั้นที่สามารถตรวจสอบประวัติรายการ (Audit Log) ได้', 'error');
+                return;
+            }
+
+            document.querySelectorAll('.tab-content').forEach(el => el.classList.add('hidden'));
+            document.getElementById(`tab-${tabId}`).classList.remove('hidden');
+
+            const titles = {
+                'dashboard': 'ภาพรวมแดชบอร์ดสถิติ',
+                'data-table': 'ข้อมูลและจัดการรายการ',
+                'duplicate-check': 'รายงานตรวจสอบทะเบียนรถซ้ำ',
+                'audit-log': 'ประวัติการทำรายการในระบบ (Audit Log)',
+                'reports': 'พิมพ์รายงาน / ส่งออกไฟล์'
+            };
+            document.getElementById('page-title').innerText = titles[tabId];
+
+            if (tabId === 'dashboard') renderCharts();
+            if (window.innerWidth < 768) document.getElementById('sidebar').classList.add('-translate-x-full');
+        }
+
+        function renderDashboard() {
+            document.getElementById('stat-total').innerText = floodData.length;
+            const claimedCount = floodData.filter(item => item.claim && item.claim !== 'รอดำเนินการ' && item.claim !== 'ยัง').length;
+            document.getElementById('stat-claimed').innerText = claimedCount;
+            document.getElementById('footer-claim-count').innerText = `${claimedCount} / ${floodData.length} เคส`;
+            
+            const pendingCount = floodData.filter(item => item.claim === 'รอดำเนินการ' || item.claim === 'ยัง').length;
+            document.getElementById('stat-pending').innerText = `${pendingCount} เคส`;
+
+            const countA = floodData.filter(item => item.water === 'A').length;
+            document.getElementById('stat-water-a').innerText = `${countA} เคส`;
+
+            const countChanged = floodData.filter(item => item.claim === 'เปลี่ยนรับแจ้ง').length;
+            const countDiffCenter = floodData.filter(item => item.claim === 'ส่งต่างศูนย์').length;
+            const countNotCovered = floodData.filter(item => item.claim === 'ไม่คุ้มครอง').length;
+            const countNonMotor = floodData.filter(item => item.claim === 'Non-Motor').length;
+
+            document.getElementById('stat-changed').innerText = `${countChanged} เคส`;
+            document.getElementById('stat-diff-center').innerText = `${countDiffCenter} เคส`;
+            document.getElementById('stat-not-covered').innerText = `${countNotCovered} เคส`;
+            document.getElementById('stat-non-motor').innerText = `${countNonMotor} เคส`;
+
+            // นิยามความหมายใหม่แสดงใน Card สรุป
+            const waterSummaryContainer = document.getElementById('water-level-summary');
+            waterSummaryContainer.innerHTML = '';
+            
+            const levelInfo = {
+                'A': { desc: 'พื้นรถยนต์', color: 'bg-red-50 text-red-600 border-red-200' },
+                'B': { desc: 'เบาะนั่ง', color: 'bg-orange-50 text-orange-600 border-orange-200' },
+                'C': { desc: 'คอนโซลล่าง', color: 'bg-yellow-50 text-yellow-600 border-yellow-200' },
+                'D': { desc: 'คอนโซลบน', color: 'bg-blue-50 text-blue-600 border-blue-200' },
+                'E': { desc: 'ท่วมทั้งคัน', color: 'bg-purple-50 text-purple-600 border-purple-200' }
+            };
+
+            ['A', 'B', 'C', 'D', 'E'].forEach(lvl => {
+                const count = floodData.filter(i => i.water === lvl).length;
+                waterSummaryContainer.innerHTML += `
+                    <div class="p-4 rounded-2xl border ${levelInfo[lvl].color} flex flex-col items-center justify-center shadow-sm text-center">
+                        <span class="text-xs font-bold">ระดับ ${lvl}</span>
+                        <span class="text-[11px] opacity-90 mt-0.5">${levelInfo[lvl].desc}</span>
+                        <h4 class="text-xl font-bold mt-1">${count} <span class="text-xs font-normal">เคส</span></h4>
+                    </div>
+                `;
+            });
+
+            renderCharts();
+        }
+
+        function renderCharts() {
+            const ctxDaily = document.getElementById('dailyChart').getContext('2d');
+            if (dailyChartInstance) dailyChartInstance.destroy();
+
+            const dateCounts = {};
+            floodData.forEach(item => {
+                dateCounts[item.date] = (dateCounts[item.date] || 0) + 1;
+            });
+
+            dailyChartInstance = new Chart(ctxDaily, {
+                type: 'bar',
+                data: {
+                    labels: Object.keys(dateCounts),
+                    datasets: [{
+                        label: 'จำนวนรถแจ้ง (คัน)',
+                        data: Object.values(dateCounts),
+                        backgroundColor: '#35B4B0',
+                        borderRadius: 8
+                    }]
+                },
+                options: { responsive: true, maintainAspectRatio: false }
+            });
+
+            const ctxWater = document.getElementById('waterChart').getContext('2d');
+            if (waterChartInstance) waterChartInstance.destroy();
+
+            const waterCounts = { 'A': 0, 'B': 0, 'C': 0, 'D': 0, 'E': 0 };
+            floodData.forEach(item => {
+                if (waterCounts[item.water] !== undefined) {
+                    waterCounts[item.water]++;
+                }
+            });
+
+            waterChartInstance = new Chart(ctxWater, {
+                type: 'doughnut',
+                data: {
+                    labels: ['ระดับ A (พื้นรถ)', 'ระดับ B (เบาะนั่ง)', 'ระดับ C (คอนโซลล่าง)', 'ระดับ D (คอนโซลบน)', 'ระดับ E (ทั้งคัน)'],
+                    datasets: [{
+                        data: Object.values(waterCounts),
+                        backgroundColor: ['#EF5350', '#FF8A65', '#FFCA28', '#0288D1', '#9C27B0']
+                    }]
+                },
+                options: { responsive: true, maintainAspectRatio: false }
+            });
+        }
+
+        function renderTable(dataToRender = floodData) {
+            const tbody = document.getElementById('main-table-body');
+            tbody.innerHTML = '';
+
+            if (dataToRender.length === 0) {
+                tbody.innerHTML = `<tr><td colspan="9" class="text-center py-6 text-gray-400">ไม่พบข้อมูลรายการ</td></tr>`;
+                return;
+            }
+
+            const waterBadgeColors = {
+                'A': 'bg-red-100 text-red-700 border-red-200',
+                'B': 'bg-orange-100 text-orange-700 border-orange-200',
+                'C': 'bg-yellow-100 text-yellow-700 border-yellow-200',
+                'D': 'bg-blue-100 text-blue-700 border-blue-200',
+                'E': 'bg-purple-100 text-purple-700 border-purple-200'
+            };
+
+            const waterDescMap = {
+                'A': 'พื้นรถยนต์',
+                'B': 'เบาะนั่ง',
+                'C': 'คอนโซลล่าง',
+                'D': 'คอนโซลบน',
+                'E': 'ท่วมทั้งคัน'
+            };
+
+            dataToRender.forEach((item) => {
+                const wLevel = item.water || 'A';
+                
+                let claimBadge = `<span class="bg-emerald-100 text-emerald-700 px-2.5 py-1 rounded-full text-xs font-medium">${item.claim}</span>`;
+                if(item.claim === 'รอดำเนินการ' || item.claim === 'ยัง') claimBadge = `<span class="bg-orange-100 text-orange-700 px-2.5 py-1 rounded-full text-xs font-bold animate-pulse">⏳ รอดำเนินการ</span>`;
+                if(item.claim === 'เปลี่ยนรับแจ้ง') claimBadge = `<span class="bg-yellow-100 text-yellow-700 px-2.5 py-1 rounded-full text-xs font-bold">⚠️ เปลี่ยนรับแจ้ง</span>`;
+                if(item.claim === 'ส่งต่างศูนย์') claimBadge = `<span class="bg-blue-100 text-blue-700 px-2.5 py-1 rounded-full text-xs font-bold">🏢 ส่งต่างศูนย์</span>`;
+                if(item.claim === 'ไม่คุ้มครอง') claimBadge = `<span class="bg-red-100 text-red-700 px-2.5 py-1 rounded-full text-xs font-bold">❌ ไม่คุ้มครอง</span>`;
+                if(item.claim === 'Non-Motor') claimBadge = `<span class="bg-purple-100 text-purple-700 px-2.5 py-1 rounded-full text-xs font-bold">📦 Non-Motor</span>`;
+
+                let actionButtons = `<span class="text-gray-400 text-xs">สิทธิ์ดูอย่างเดียว</span>`;
+                if (currentUserRole !== 'viewer') {
+                    actionButtons = `
+                        <button onclick="openEditModal(${item.id})" class="text-secondary hover:text-primary"><i class="fa-solid fa-pen-to-square"></i></button>
+                        <button onclick="deleteData(${item.id})" class="text-redCustom/80 hover:text-redCustom ml-2"><i class="fa-solid fa-trash-can"></i></button>
+                    `;
+                }
+
+                tbody.innerHTML += `
+                    <tr class="hover:bg-gray-50/80 transition">
+                        <td class="py-3 px-4 text-xs font-medium text-gray-500">${item.date}</td>
+                        <td class="py-3 px-4 font-semibold text-primary">${item.ticket}</td>
+                        <td class="py-3 px-4 text-gray-600">${item.location}</td>
+                        <td class="py-3 px-4">
+                            <span class="px-2.5 py-1 rounded-lg text-xs font-bold border ${waterBadgeColors[wLevel]}">ระดับ ${wLevel} (${waterDescMap[wLevel]})</span>
+                        </td>
+                        <td class="py-3 px-4 text-gray-800">${item.name} <br><span class="text-xs text-gray-400">${item.phone || ''}</span></td>
+                        <td class="py-3 px-4 font-medium text-gray-700">${item.car}</td>
+                        <td class="py-3 px-4 text-xs text-gray-600 font-medium"><i class="fa-solid fa-user-shield text-primary mr-1"></i>${item.assignee || 'ยังไม่ระบุ'}</td>
+                        <td class="py-3 px-4">${claimBadge}</td>
+                        <td class="py-3 px-4 text-center">${actionButtons}</td>
+                    </tr>
+                `;
+            });
+        }
+
+        function filterTableData() {
+            const dateFilter = document.getElementById('filter-date').value;
+            const waterFilter = document.getElementById('filter-water').value;
+            const specialFilter = document.getElementById('filter-special').value;
+            const searchVal = document.getElementById('search-input').value.toLowerCase();
+
+            let filtered = floodData.filter(item => {
+                const matchDate = (dateFilter === 'all' || item.date === dateFilter);
+                const matchWater = (waterFilter === 'all' || item.water === waterFilter);
+                
+                let matchSpecial = true;
+                if(specialFilter !== 'all') {
+                    matchSpecial = (item.claim === specialFilter);
+                }
+
+                const matchSearch = item.name.toLowerCase().includes(searchVal) || 
+                                    item.car.toLowerCase().includes(searchVal) || 
+                                    item.ticket.includes(searchVal);
+                return matchDate && matchWater && matchSpecial && matchSearch;
+            });
+
+            renderTable(filtered);
+        }
+
+        function renderAuditLog() {
+            const tbody = document.getElementById('audit-table-body');
+            tbody.innerHTML = '';
+            auditLogs.slice().reverse().forEach(log => {
+                tbody.innerHTML += `
+                    <tr class="hover:bg-gray-50 transition">
+                        <td class="py-3 px-4 text-xs font-medium text-gray-500">${log.time}</td>
+                        <td class="py-3 px-4 font-medium text-primary">${log.user}</td>
+                        <td class="py-3 px-4"><span class="bg-primary/10 text-primary px-2 py-0.5 rounded text-xs font-bold">${log.action}</span></td>
+                        <td class="py-3 px-4 text-xs text-gray-600">${log.details}</td>
+                    </tr>
+                `;
+            });
+        }
+
+        function logAction(action, details) {
+            if (currentUserRole === 'viewer') return;
+            const now = new Date();
+            const timeStr = `${now.getDate().toString().padStart(2,'0')}-${(now.getMonth()+1).toString().padStart(2,'0')}-${now.getFullYear()} ${now.getHours().toString().padStart(2,'0')}:${now.getMinutes().toString().padStart(2,'0')}`;
+            auditLogs.push({ time: timeStr, user: currentUserRole.toUpperCase(), action, details });
+            renderAuditLog();
+        }
+
+        function importExcelData(event) {
+            if (currentUserRole === 'viewer') {
+                Swal.fire('ปฏิเสธการเข้าถึง', 'สิทธิ์ Viewer ไม่สามารถนำเข้าข้อมูลได้', 'warning');
+                return;
+            }
+            Swal.fire('สำเร็จ', 'นำเข้าข้อมูลสำเร็จ', 'success');
+        }
+
+        function exportToExcel() {
+            const exportData = floodData.map((item, index) => ({
+                'ลำดับ': index + 1,
+                'วันที่เกิดเหตุ': item.date,
+                'เลขรับแจ้ง': item.ticket,
+                'สถานที่เกิดเหตุ': item.location,
+                'ระดับน้ำท่วม': `ระดับ ${item.water || 'A'}`,
+                'ชื่อผู้แจ้ง': item.name,
+                'เบอร์โทร': item.phone,
+                'รุ่นรถ / ทะเบียน': item.car,
+                'ผู้รับผิดชอบ': item.assignee,
+                'สถานะเคลม': item.claim
+            }));
+
+            const worksheet = XLSX.utils.json_to_sheet(exportData);
+            const workbook = XLSX.utils.book_new();
+            XLSX.utils.book_append_sheet(workbook, worksheet, "Ratchada69_Enterprise");
+            XLSX.writeFile(workbook, "Ratchada69_Control_Report.xlsx");
+            
+            logAction('EXPORT', 'ดาวน์โหลดรายงานสรุปเป็นไฟล์ Excel สำเร็จ');
+            Swal.fire({ icon: 'success', title: 'ส่งออกไฟล์ Excel สำเร็จ', showConfirmButton: false, timer: 1500 });
+        }
+
+        function openAddModal() {
+            if (currentUserRole === 'viewer') {
+                Swal.fire('ปฏิเสธการเข้าถึง', 'สิทธิ์ Viewer ไม่สามารถเพิ่มรายการใหม่ได้', 'warning');
+                return;
+            }
+            document.getElementById('modal-title').innerText = 'เพิ่มรายการแจ้งน้ำท่วม';
+            document.getElementById('edit-index').value = '';
+            document.getElementById('m-ticket').value = '';
+            document.getElementById('m-location').value = '';
+            document.getElementById('m-water').value = 'A';
+            document.getElementById('m-name').value = '';
+            document.getElementById('m-phone').value = '';
+            document.getElementById('m-car').value = '';
+            document.getElementById('m-assignee').value = 'คุณสมชาย (ทีม A)';
+            document.getElementById('m-claim').value = 'เปิดเคลมแล้ว';
+            document.getElementById('data-modal').classList.remove('hidden');
+        }
+
+        function openEditModal(id) {
+            if (currentUserRole === 'viewer') {
+                Swal.fire('ปฏิเสธการเข้าถึง', 'สิทธิ์ Viewer ไม่สามารถแก้ไขข้อมูลได้', 'warning');
+                return;
+            }
+            const item = floodData.find(i => i.id === id);
+            if (!item) return;
+
+            document.getElementById('modal-title').innerText = 'แก้ไขรายการแจ้งน้ำท่วม';
+            document.getElementById('edit-index').value = item.id;
+            document.getElementById('m-date').value = item.date;
+            document.getElementById('m-ticket').value = item.ticket;
+            document.getElementById('m-location').value = item.location;
+            document.getElementById('m-water').value = item.water || 'A';
+            document.getElementById('m-name').value = item.name;
+            document.getElementById('m-phone').value = item.phone || '';
+            document.getElementById('m-car').value = item.car;
+            document.getElementById('m-assignee').value = item.assignee || 'คุณสมชาย (ทีม A)';
+            document.getElementById('m-claim').value = item.claim;
+            document.getElementById('data-modal').classList.remove('hidden');
+        }
+
+        function closeModal() {
+            document.getElementById('data-modal').classList.add('hidden');
+        }
+
+        function saveData() {
+            const id = document.getElementById('edit-index').value;
+            const date = document.getElementById('m-date').value;
+            const ticket = document.getElementById('m-ticket').value;
+            const location = document.getElementById('m-location').value;
+            const water = document.getElementById('m-water').value;
+            const name = document.getElementById('m-name').value;
+            const phone = document.getElementById('m-phone').value;
+            const car = document.getElementById('m-car').value;
+            const assignee = document.getElementById('m-assignee').value;
+            const claim = document.getElementById('m-claim').value;
+
+            if (!ticket || !name || !car) {
+                Swal.fire('คำเตือน', 'กรุณากรอกข้อมูลเลขรับแจ้ง ชื่อ และรุ่นรถให้ครบถ้วน', 'warning');
+                return;
+            }
+
+            if (id) {
+                const index = floodData.findIndex(i => i.id == id);
+                if (index !== -1) {
+                    floodData[index] = { id: Number(id), date, ticket, location, water, name, phone, car, assignee, claim };
+                }
+                logAction('UPDATE', `แก้ไขข้อมูลเลขรับแจ้ง: ${ticket} (${car})`);
+                Swal.fire({ icon: 'success', title: 'อัปเดตข้อมูลสำเร็จ', showConfirmButton: false, timer: 1500 });
+            } else {
+                const newId = floodData.length > 0 ? Math.max(...floodData.map(i => i.id)) + 1 : 1;
+                floodData.push({ id: newId, date, ticket, location, water, name, phone, car, assignee, claim });
+                logAction('CREATE', `เพิ่มรายการใหม่เลขรับแจ้ง: ${ticket} (${car})`);
+                Swal.fire({ icon: 'success', title: 'เพิ่มรายการสำเร็จ', showConfirmButton: false, timer: 1500 });
+            }
+
+            closeModal();
+            renderDashboard();
+            renderTable();
+        }
+
+        function deleteData(id) {
+            if (currentUserRole === 'viewer') {
+                Swal.fire('ปฏิเสธการเข้าถึง', 'สิทธิ์ Viewer ไม่สามารถลบข้อมูลได้', 'warning');
+                return;
+            }
+
+            const item = floodData.find(i => i.id === id);
+            Swal.fire({
+                title: 'คุณแน่ใจหรือไม่?',
+                text: "ต้องการลบรายการนี้ออกจากระบบ?",
+                icon: 'warning',
+                showCancelButton: true,
+                confirmButtonColor: '#EF5350',
+                cancelButtonColor: '#35B4B0',
+                confirmButtonText: 'ใช่, ลบเลย',
+                cancelButtonText: 'ยกเลิก'
+            }).then((result) => {
+                if (result.isConfirmed) {
+                    floodData = floodData.filter(i => i.id !== id);
+                    logAction('DELETE', `ลบรายการเลขรับแจ้ง: ${item ? item.ticket : id}`);
+                    renderDashboard();
+                    renderTable();
+                    Swal.fire({ icon: 'success', title: 'ลบข้อมูลสำเร็จ', showConfirmButton: false, timer: 1500 });
+                }
+            });
+        }
+
+        function confirmLogout() {
+            Swal.fire({
+                title: 'ออกจากระบบ?',
+                text: "คุณต้องการออกจากระบบผู้ดูแลใช่หรือไม่",
+                icon: 'question',
+                showCancelButton: true,
+                confirmButtonColor: '#EF5350',
+                cancelButtonColor: '#35B4B0',
+                confirmButtonText: 'ออกจากระบบ',
+                cancelButtonText: 'ยกเลิก'
+            }).then((result) => {
+                if (result.isConfirmed) {
+                    logAction('LOGOUT', 'ผู้ดูแลระบบออกจากระบบ');
+                    Swal.fire('ออกจากระบบเรียบร้อย', '', 'success');
+                }
+            });
+        }
+    </script>
+</body>
+</html>
